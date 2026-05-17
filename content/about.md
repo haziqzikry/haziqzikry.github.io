@@ -2,6 +2,8 @@
 title: "whoami"
 ---
 
+# whoami 
+
 I'm Haziq, a data platform engineer with a passion for building scalable and efficient data systems.
 
 I like to build, break, and operate data platform engineering infrastructures with open-source tooling and solutions that can serve critical downstream use cases. 
