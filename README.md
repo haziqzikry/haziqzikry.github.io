@@ -1,6 +1,6 @@
 # hz-portfolio
 
-Personal site + blog at [haziqzikry.github.io](https://haziqzikry.github.io).
+Personal site + blog at [haziqzikry.xyz](https://haziqzikry.xyz).
 
 ## Adding a post
 
