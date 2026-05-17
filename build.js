@@ -195,8 +195,14 @@ function homePage(homeHtml, posts) {
     </section>`;
 
   const body = `
-    <div class="prose prose-gray dark:prose-invert max-w-none">
-      ${homeHtml}
+    <div class="flex flex-col-reverse sm:flex-row sm:items-start gap-8">
+      <div class="prose prose-gray dark:prose-invert max-w-none flex-1">
+        ${homeHtml}
+      </div>
+      <div class="w-44 h-44 rounded-full overflow-hidden shrink-0 sm:mt-1 self-center sm:self-auto">
+        <img src="/images/haziq-pic.jpg" alt="Haziq Zikry"
+             class="w-full h-full object-cover object-top scale-125" />
+      </div>
     </div>
     ${latestSection}
   `;
