@@ -72,27 +72,44 @@ function readMarkdown(filePath) {
 // --- content loaders ---
 function loadPosts() {
   if (!fs.existsSync(POSTS_DIR)) return [];
-  const slugs = fs.readdirSync(POSTS_DIR, { withFileTypes: true })
-    .filter(e => e.isDirectory())
-    .map(e => e.name);
 
-  const posts = slugs.map(slug => {
-    const indexPath = path.join(POSTS_DIR, slug, 'index.md');
-    if (!fs.existsSync(indexPath)) return null;
-    const { data, content } = readMarkdown(indexPath);
-    return {
+  const entries = fs.readdirSync(POSTS_DIR, { withFileTypes: true });
+  const posts = [];
+
+  for (const entry of entries) {
+    let slug, filePath, isBundle;
+
+    if (entry.isFile() && entry.name.endsWith('.md')) {
+      // flat file: content/posts/my-post.md → slug = my-post
+      slug = entry.name.slice(0, -3);
+      filePath = path.join(POSTS_DIR, entry.name);
+      isBundle = false;
+    } else if (entry.isDirectory()) {
+      // page bundle: content/posts/my-post/index.md
+      const indexPath = path.join(POSTS_DIR, entry.name, 'index.md');
+      if (!fs.existsSync(indexPath)) continue;
+      slug = entry.name;
+      filePath = indexPath;
+      isBundle = true;
+    } else {
+      continue;
+    }
+
+    const { data, content } = readMarkdown(filePath);
+    if (data.draft === true) continue;
+    posts.push({
       slug,
       title: data.title || slug,
       date: data.date ? new Date(data.date) : new Date(0),
       summary: data.summary || '',
       tags: data.tags || [],
-      draft: data.draft === true,
+      isBundle,
       html: marked.parse(content),
-    };
-  }).filter(Boolean);
+    });
+  }
 
   posts.sort((a, b) => b.date - a.date);
-  return posts.filter(p => !p.draft);
+  return posts;
 }
 
 // --- templates ---
@@ -256,11 +273,14 @@ function build() {
     postsListPage(posts),
   );
 
-  // Individual posts — copy bundle (images etc.) and emit index.html
+  // Individual posts
   for (const post of posts) {
-    const srcDir = path.join(POSTS_DIR, post.slug);
     const destDir = path.join(PUBLIC_DIR, 'posts', post.slug);
-    copyDirSync(srcDir, destDir, { skipMd: true });
+    ensureDir(destDir);
+    if (post.isBundle) {
+      // copy images and other assets from the post folder
+      copyDirSync(path.join(POSTS_DIR, post.slug), destDir, { skipMd: true });
+    }
     fs.writeFileSync(path.join(destDir, 'index.html'), postPage(post));
   }
 
