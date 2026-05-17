@@ -139,6 +139,9 @@ Other deprecations that may or may not bite you:
 
 One question that comes up immediately when you plan a migration like this: how do you run the old pipelines and the new ones at the same time without breaking each other? The answer is not "carefully" but the answer is **isolation and running in parallel.**
 
+![](/images/posts/airflow-v3/airflow-parallel-run.svg)
+*Rough sketch on how Airflow 2 and 3 ran in parallel*
+
 We ran **two entirely separate Airflow deployments** for Airflow 2 and 3. Separate S3 DAG buckets, and separate shared libraries for V2 and V3. The two sets of pipelines had zero shared state. Airflow 2 DAGs kept running against the old 3-layer architecture while Airflow 3 DAGs were built, tested, and promoted product by product using the new 2-layer architecture. If V3 go kaboom and kablow, V2 was completely unaffected.
 
 The provisioning infrastructure was also extended: new Terraform modules pointing to V3-specific paths in the infrastructure repo, new Airflow deployments for the V3 environments, and new V3 dev branches for the engineers to work on and provision. It sounds more complicated than it was but actually in practice it mostly came down to naming things consistently and pointing to the right paths.
