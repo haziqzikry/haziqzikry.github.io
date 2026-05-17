@@ -2,11 +2,8 @@
 title: "Haziq Zikry"
 ---
 
-Hi, I'm Haziq — a data platform engineer.
+Hi, I'm Haziq - a data platform engineer.
 
-I work on data infrastructure: pipelines, warehouses, the plumbing that makes
-analytics and ML possible. Outside of work I tinker with side projects, read
-about systems and tools, and occasionally write things down here.
+I mainly work on building scalable data platforms and pipelines, that makes data accessible and usable for downstream use cases.
 
-This site is my notebook. See the [posts](/posts/) for what I've been thinking
-about, or the [about](/about/) page for a longer introduction.
+This site will (hopefully) hold well thought out articles based on my experience in building/learning in the data space. See the [posts](/posts/) for what I've been thinking about recently (pls don't expect too much). 

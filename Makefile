@@ -6,8 +6,8 @@ install:
 build:
 	node build.js
 
-serve: build
-	cd public && python3 -m http.server 8000
+serve:
+	node watch.js
 
 new-post:
 	@test -n "$(SLUG)" || (echo "usage: make new-post SLUG=my-post" && exit 1)
