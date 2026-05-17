@@ -1,6 +1,6 @@
 ---
 title: What migrating to Airflow 3 actually looks like in production
-date: 2026-05-16
+date: 2026-05-18
 tags: [airflow, data-engineering, python]
 draft: false
 ---
