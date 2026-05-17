@@ -164,6 +164,7 @@ function baseLayout(title, content, sidebar = null) {
     .prose pre code.hljs { color: #24292e; background: #f6f8fa; display: block; padding: 1em; border-radius: 0.5rem; }
     .dark .prose pre code.hljs { color: #c9d1d9; background: #0d1117; }
     .prose table { display: block; overflow-x: auto; }
+    .prose :not(pre) > code { overflow-wrap: break-word; }
     .prose img { @apply rounded-lg mx-auto; }
     .prose a { @apply underline decoration-gray-400 dark:decoration-gray-500 underline-offset-2 hover:decoration-gray-800 dark:hover:decoration-gray-200 transition-colors; }
   </style>
