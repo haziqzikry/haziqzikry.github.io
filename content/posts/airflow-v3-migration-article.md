@@ -2,7 +2,7 @@
 title: What migrating to Airflow 3 actually looks like in production
 date: 2026-05-18
 tags: [airflow, data-engineering, python]
-image: /images/posts/airflow-v3/airflow-parallel-run.svg
+image: /images/posts/airflow-v3/airflow-parallel-run.png
 draft: false
 ---
 
