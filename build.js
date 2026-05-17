@@ -64,6 +64,11 @@ function formatDateShort(date) {
   return new Date(date).toISOString().slice(0, 10);
 }
 
+function readTime(text) {
+  const words = text.trim().split(/\s+/).length;
+  return Math.max(1, Math.ceil(words / 200));
+}
+
 function readMarkdown(filePath) {
   const raw = fs.readFileSync(filePath, 'utf-8');
   return matter(raw);
@@ -103,6 +108,7 @@ function loadPosts() {
       date: data.date ? new Date(data.date) : new Date(0),
       summary: data.summary || '',
       tags: data.tags || [],
+      readTime: readTime(content),
       isBundle,
       html: marked.parse(content),
     });
@@ -179,7 +185,10 @@ function baseLayout(title, content) {
 function postListItem(post) {
   return `<li class="flex flex-col sm:flex-row sm:items-baseline gap-1 sm:gap-4">
       <time class="text-sm text-gray-500 dark:text-gray-400 shrink-0" datetime="${post.date.toISOString()}">${formatDateShort(post.date)}</time>
-      <a href="/posts/${post.slug}/" class="hover:opacity-75 transition-opacity">${escapeHtml(post.title)}</a>
+      <span class="flex items-baseline gap-2">
+        <a href="/posts/${post.slug}/" class="hover:opacity-75 transition-opacity">${escapeHtml(post.title)}</a>
+        <span class="text-xs text-gray-400 dark:text-gray-500 shrink-0">${post.readTime} min read</span>
+      </span>
     </li>`;
 }
 
@@ -237,7 +246,11 @@ function postPage(post) {
     <article>
       <header class="mb-8">
         <h1 class="text-2xl font-semibold mb-2">${escapeHtml(post.title)}</h1>
-        <time class="text-sm text-gray-500 dark:text-gray-400" datetime="${post.date.toISOString()}">${formatDate(post.date)}</time>
+        <div class="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
+          <time datetime="${post.date.toISOString()}">${formatDate(post.date)}</time>
+          <span>&middot;</span>
+          <span>${post.readTime} min read</span>
+        </div>
       </header>
       ${tags}
       <div class="prose prose-gray dark:prose-invert max-w-none
