@@ -4,7 +4,7 @@ const matter = require('gray-matter');
 const { marked } = require('marked');
 const hljs = require('highlight.js');
 
-// --- marked: highlight.js for fenced code blocks ---
+// --- marked: highlight.js for fenced code blocks + heading IDs ---
 const renderer = new marked.Renderer();
 renderer.code = function (code, lang) {
   lang = (lang || '').split(/\s/)[0];
@@ -15,6 +15,11 @@ renderer.code = function (code, lang) {
     highlighted = hljs.highlightAuto(code).value;
   }
   return `<pre><code class="hljs language-${lang}">${highlighted}</code></pre>`;
+};
+renderer.heading = function (text, level) {
+  const id = text.replace(/<[^>]*>/g, '').toLowerCase()
+    .replace(/[^\w\s-]/g, '').trim().replace(/\s+/g, '-');
+  return `<h${level} id="${id}">${text}</h${level}>`;
 };
 marked.use({ renderer });
 
@@ -69,6 +74,20 @@ function readTime(text) {
   return Math.max(1, Math.ceil(words / 200));
 }
 
+function extractHeadings(html) {
+  const headings = [];
+  const re = /<h([23]) id="([^"]+)">(.*?)<\/h[23]>/g;
+  let m;
+  while ((m = re.exec(html)) !== null) {
+    headings.push({
+      level: parseInt(m[1]),
+      id: m[2],
+      text: m[3].replace(/<[^>]*>/g, ''),
+    });
+  }
+  return headings;
+}
+
 function readMarkdown(filePath) {
   const raw = fs.readFileSync(filePath, 'utf-8');
   return matter(raw);
@@ -119,7 +138,7 @@ function loadPosts() {
 }
 
 // --- templates ---
-function baseLayout(title, content) {
+function baseLayout(title, content, sidebar = null) {
   return `<!DOCTYPE html>
 <html lang="en"
   x-data="{ dark: localStorage.getItem('dark') === 'true' }"
@@ -163,8 +182,14 @@ function baseLayout(title, content) {
   </div>
   </header>
 
-  <main class="max-w-2xl mx-auto w-full px-6 flex-1 mt-10">
-    ${content}
+  <main class="${sidebar ? 'max-w-6xl' : 'max-w-2xl'} mx-auto w-full px-6 flex-1 mt-10">
+    ${sidebar ? `
+    <div class="flex gap-16 items-start">
+      <div class="flex-1 min-w-0">${content}</div>
+      <aside class="w-52 shrink-0 hidden xl:block">
+        <div class="sticky top-28">${sidebar}</div>
+      </aside>
+    </div>` : content}
   </main>
 
   <footer class="max-w-2xl mx-auto w-full px-6 py-8 text-sm text-gray-500 dark:text-gray-400 flex items-center justify-between">
@@ -237,6 +262,29 @@ function postsListPage(posts) {
   return baseLayout('Posts', body);
 }
 
+function buildToc(headings) {
+  const items = JSON.stringify(headings);
+  const links = headings.map(h => `
+    <a href="#${h.id}"
+       :class="active === '${h.id}' ? 'text-gray-900 dark:text-gray-100 font-medium' : 'text-gray-400 dark:text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'"
+       class="block text-sm transition-colors leading-snug py-0.5 ${h.level === 3 ? 'pl-3' : ''}"
+    >${escapeHtml(h.text)}</a>`).join('');
+
+  return `
+    <div x-data='{active: null, items: ${items}}'
+         x-init="
+           const obs = new IntersectionObserver(es => {
+             es.forEach(e => { if (e.isIntersecting) active = e.target.id; });
+           }, { rootMargin: '-10% 0px -80% 0px' });
+           items.forEach(h => { const el = document.getElementById(h.id); if (el) obs.observe(el); });
+         ">
+      <p class="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-3">On this page</p>
+      <nav class="space-y-0.5 border-l border-gray-200 dark:border-gray-700 pl-3">
+        ${links}
+      </nav>
+    </div>`;
+}
+
 function postPage(post) {
   const tags = post.tags.length
     ? `<div class="flex flex-wrap gap-2 mb-8">${post.tags.map(t => `<span class="text-xs px-2 py-1 rounded bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300">${escapeHtml(t)}</span>`).join('')}</div>`
@@ -262,7 +310,10 @@ function postPage(post) {
       </div>
     </article>
   `;
-  return baseLayout(post.title, body);
+
+  const headings = extractHeadings(post.html);
+  const sidebar = headings.length >= 3 ? buildToc(headings) : null;
+  return baseLayout(post.title, body, sidebar);
 }
 
 // --- build ---
