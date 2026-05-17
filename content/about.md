@@ -1,23 +1,11 @@
 ---
-title: "About"
+title: "whoami"
 ---
 
-# About
+I'm Haziq, a data platform engineer with a passion for building scalable and efficient data systems.
 
-I'm Haziq, a data platform engineer.
+I like to build, break, and operate data platform engineering infrastructures with open-source tooling and solutions that can serve critical downstream use cases. 
 
-## What I do
+I have experience in building data pipelines, data platforms, and data lakes using technologies such as Apache Airflow, Apache Spark, and AWS services (S3, EMR, Glue, Athena, QuickSight, EKS, and more). 
 
-Build and operate the data platform — ingestion, transformation, storage,
-serving — for analytics and ML workloads.
-
-## What I'm interested in
-
-- Data infrastructure and the trade-offs in modern data stacks
-- Developer experience for data tooling
-- Side projects in adjacent areas (observability, devtools)
-
-## Elsewhere
-
-- GitHub: [haziqzikry](https://github.com/haziqzikry)
-- Email: haziqzikry@gmail.com
+Feel free to connect with me and we can chat more about data engineering and data platform tech stacks/use cases.
