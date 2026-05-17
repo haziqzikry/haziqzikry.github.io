@@ -143,7 +143,8 @@ function baseLayout(title, content) {
   </style>
 </head>
 <body class="bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 transition-colors duration-200 min-h-screen flex flex-col text-base lg:text-lg">
-  <header class="max-w-2xl mx-auto w-full px-6 py-8 flex items-center justify-between">
+  <header class="sticky top-0 z-10 backdrop-blur-sm bg-white/90 dark:bg-gray-900/90 border-b border-gray-100 dark:border-gray-800">
+  <div class="max-w-2xl mx-auto w-full px-6 py-6 flex items-center justify-between">
     <a href="/" class="text-lg font-semibold hover:opacity-75 transition-opacity">${escapeHtml(SITE_TITLE)}</a>
     <nav class="flex items-center gap-6">
       <a href="/about/" class="hover:opacity-75 transition-opacity">About</a>
@@ -153,9 +154,10 @@ function baseLayout(title, content) {
         <svg x-show="dark" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
       </button>
     </nav>
+  </div>
   </header>
 
-  <main class="max-w-2xl mx-auto w-full px-6 flex-1">
+  <main class="max-w-2xl mx-auto w-full px-6 flex-1 mt-10">
     ${content}
   </main>
 
