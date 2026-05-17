@@ -4,11 +4,14 @@
   "private": true,
   "scripts": {
     "build": "node build.js",
-    "preview": "npx serve public"
+    "watch": "node watch.js"
   },
   "dependencies": {
     "gray-matter": "^4.0.3",
     "highlight.js": "^11.9.0",
     "marked": "^12.0.0"
+  },
+  "devDependencies": {
+    "chokidar": "^5.0.0"
   }
 }
