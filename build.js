@@ -127,6 +127,7 @@ function loadPosts() {
       date: data.date ? new Date(data.date) : new Date(0),
       summary: data.summary || '',
       tags: data.tags || [],
+      image: data.image ? `${SITE_URL}${data.image}` : null,
       readTime: readTime(content),
       isBundle,
       html: marked.parse(content),
@@ -138,7 +139,16 @@ function loadPosts() {
 }
 
 // --- templates ---
-function baseLayout(title, content, sidebar = null) {
+function baseLayout(title, content, sidebar = null, meta = {}) {
+  const ogTitle = escapeHtml(title);
+  const ogDescription = escapeHtml(meta.description || SITE_DESCRIPTION);
+  const ogUrl = escapeHtml(meta.url || SITE_URL);
+  const ogType = meta.type || 'website';
+  const ogImageTag = meta.image
+    ? `<meta property="og:image" content="${escapeHtml(meta.image)}">
+  <meta name="twitter:image" content="${escapeHtml(meta.image)}">`
+    : '';
+
   return `<!DOCTYPE html>
 <html lang="en"
   x-data="{ dark: localStorage.getItem('dark') === 'true' }"
@@ -147,8 +157,16 @@ function baseLayout(title, content, sidebar = null) {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>${escapeHtml(title)}</title>
-  <meta name="description" content="${escapeHtml(SITE_DESCRIPTION)}">
+  <title>${ogTitle}</title>
+  <meta name="description" content="${ogDescription}">
+  <meta property="og:type" content="${ogType}">
+  <meta property="og:title" content="${ogTitle}">
+  <meta property="og:description" content="${ogDescription}">
+  <meta property="og:url" content="${ogUrl}">
+  ${ogImageTag}
+  <meta name="twitter:card" content="${meta.image ? 'summary_large_image' : 'summary'}">
+  <meta name="twitter:title" content="${ogTitle}">
+  <meta name="twitter:description" content="${ogDescription}">
   <script src="https://cdn.tailwindcss.com?plugins=typography"></script>
   <script>
     tailwind.config = { darkMode: 'class', theme: { extend: {} } };
@@ -341,7 +359,12 @@ function postPage(post) {
   `;
 
   const sidebar = headings.length >= 3 ? buildToc(headings) : null;
-  return baseLayout(post.title, body, sidebar);
+  return baseLayout(post.title, body, sidebar, {
+    type: 'article',
+    description: post.summary,
+    url: `${SITE_URL}/posts/${post.slug}/`,
+    image: post.image,
+  });
 }
 
 // --- build ---
