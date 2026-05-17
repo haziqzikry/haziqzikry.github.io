@@ -262,6 +262,29 @@ function postsListPage(posts) {
   return baseLayout('Posts', body);
 }
 
+function buildMobileToc(headings) {
+  const links = headings.map(h => `
+    <a href="#${h.id}" @click="open = false"
+       class="block text-sm leading-snug py-0.5 text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100 transition-colors ${h.level === 3 ? 'pl-3' : ''}"
+    >${escapeHtml(h.text)}</a>`).join('');
+
+  return `
+    <div class="xl:hidden mb-8 border border-gray-200 dark:border-gray-700 rounded-lg px-4 py-3"
+         x-data="{ open: false }">
+      <button @click="open = !open"
+              class="flex items-center justify-between w-full text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">
+        <span>On this page</span>
+        <svg :class="{ 'rotate-180': open }" class="h-4 w-4 transition-transform duration-200"
+             xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+        </svg>
+      </button>
+      <nav x-show="open" x-transition class="mt-3 border-l border-gray-200 dark:border-gray-700 pl-3 space-y-0.5">
+        ${links}
+      </nav>
+    </div>`;
+}
+
 function buildToc(headings) {
   const items = JSON.stringify(headings);
   const links = headings.map(h => `
@@ -290,6 +313,9 @@ function postPage(post) {
     ? `<div class="flex flex-wrap gap-2 mb-8">${post.tags.map(t => `<span class="text-xs px-2 py-1 rounded bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300">${escapeHtml(t)}</span>`).join('')}</div>`
     : '';
 
+  const headings = extractHeadings(post.html);
+  const mobileToc = headings.length >= 3 ? buildMobileToc(headings) : '';
+
   const body = `
     <article>
       <header class="mb-8">
@@ -301,6 +327,7 @@ function postPage(post) {
         </div>
       </header>
       ${tags}
+      ${mobileToc}
       <div class="prose prose-gray dark:prose-invert max-w-none
         prose-headings:font-semibold
         prose-code:before:content-none prose-code:after:content-none
@@ -311,7 +338,6 @@ function postPage(post) {
     </article>
   `;
 
-  const headings = extractHeadings(post.html);
   const sidebar = headings.length >= 3 ? buildToc(headings) : null;
   return baseLayout(post.title, body, sidebar);
 }
