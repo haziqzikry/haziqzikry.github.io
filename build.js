@@ -21,7 +21,7 @@ marked.use({ renderer });
 // --- site config ---
 const SITE_TITLE = 'Haziq Zikry';
 const SITE_DESCRIPTION = 'Notes from a data platform engineer.';
-const SITE_URL = 'https://haziqzikry.github.io';
+const SITE_URL = 'https://haziqzikry.xyz';
 
 const ROOT = __dirname;
 const CONTENT_DIR = path.join(ROOT, 'content');
