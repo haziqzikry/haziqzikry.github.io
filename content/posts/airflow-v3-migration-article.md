@@ -14,14 +14,14 @@ Don't you just love getting paged at 2am on a random Saturday (read: **WEEKEND**
 
 Somewhere in that chain, you lose an hour you didn't have to find the root cause, look into similar incident reports, rerun and debug, and then finally get a fix that can be implemented temporarily till the following morning (oh, and don't forget to write the post-mortem incident report too). You really start questioning every life decision that led you to data engineering at this point (**exaggerated** as it is part of the job, but it did feel like that sometimes la).
 
-That was the reality of running a typical [**3-layer medallion architecture data lake**](https://www.databricks.com/blog/what-is-medallion-architecture) with my previous employer. We orchestrated data pipelines on an infrastructure that processes millions of payment transactions daily. The data had to be accurate, available on time, and fast to recover. Reports that had hard SLAs and downstream systems depended on final data being ready within specific time windows. Every extra layer between source ingestion and the final output was another failure point for delays to accumulate...and another place for me and other engineers to lose sleep over.
+That was the reality of running a [**3-layer medallion architecture data lake**](https://www.databricks.com/blog/what-is-medallion-architecture) at my previous employer. Millions of payment transactions daily, hard SLAs, downstream systems that couldn't wait. Every extra layer between ingestion and output was another failure point, and another reason to lose sleep.
 
 ![](/images/posts/airflow-v3/airflow-intro-meme.png)
 *Wow! Airflow for data orchestration! [Link to meme](https://www.tiktok.com/@mrizkidata/video/7568847374055918855?is_from_webapp=1&sender_device=pc&web_id=7640870573282919937)*
 
-[**Apache Airflow**](https://github.com/apache/airflow) was the backbone of that orchestration. At its peak, the product I started the migration on (which had the highest-volume in the lake) had **~50 active DAGs** on our [EKS](https://aws.amazon.com/eks/) environment. That might not seem a lot to many of you data engineers out there but it was considered a lot, relative to our other pipelines. And in late 2025, I started a migration that turned out to be two problems at once: a shift from a 3-layer to a 2-layer data architecture, and **an upgrade from Airflow 2 to Airflow 3**. Airflow 3 was announced way back in [April 2025](https://airflow.apache.org/blog/airflow-three-point-oh-is-here/) as a **major release** but my team and I did not really look into it much since we had other priorities to handle...till this became our priority.
+[**Apache Airflow**](https://github.com/apache/airflow) was the backbone of that orchestration. At its peak, the highest-volume product alone had **~50 active DAGs** running on Airflow [EKS](https://aws.amazon.com/eks/) (We had **500 over DAGs** across different environments and products). In late 2025, what started as an architecture cleanup turned into two problems at once: collapsing from 3 layered architecture to 2, and **upgrading from Airflow 2 to Airflow 3**, a [major release](https://airflow.apache.org/blog/airflow-three-point-oh-is-here/) we'd been quietly ignoring until we couldn't anymore.
 
-The discovery, infrastructure setup, initial POCs, and the first pipelines to production were all done **under 2 months**. My team leads and fellow data engineers were incredibly encouraging throughout. Chiming in with new ideas, catching things I missed, and iterating on the architecture alongside me. Without them, this would have taken much longer and probably broken a lot more things.
+Discovery, POCs, and first pipelines to production were done all **under 2 months**, with team leads and fellow DEs who caught things I missed and pushed the architecture in directions I hadn't considered. Without them, this would've taken a lot longer and broken a lot more things.
 
 This article is that story. I'm writing it the way I wish someone had written it for me before I started (including the embarrassing parts). 
 
@@ -35,7 +35,7 @@ Get your kopi ais ready folks, it's somewhat a long one (or you can just skip to
 >
 > **The problem:** 3-layer data lake. Airflow 2 DAGs for ingestion, Airflow 2 + Spark/EMR for transformation (ETL), another Airflow 2 ETL for the consumable layer. Expensive EMR clusters for jobs Athena could handle in seconds, additive SLA delays across every layer, and three things to version, test, and debug for every pipeline.
 >
-> So how tf are we gonna fix this??
+> So how the f*** are we gonna fix this??
 >
 > **The fix:** Collapse raw and staging into **one layer** and keeping it as a 2-layer data lake. Transformation logic applied at ingestion time. Parquet written directly to S3, schema enforced, registered in Glue. Athena can query it the moment ingestion finishes. Airflow 3 now only manages the consumable layer: Athena queries → Iceberg writes via PyIceberg. No Spark in the critical path and still fits the use case perfectly.
 
@@ -55,21 +55,21 @@ Before getting into the specific breaking changes, it is worth understanding _wh
 ![](/images/posts/airflow-v3/airflow2-eol.png)
 *Airflow 2.x EOL announcement — [astronomer.io/airflow-2-eol](https://www.astronomer.io/airflow-2-eol/)*
 
-Open-source Apache Airflow 2.x officially reached **end of life** on **April 22, 2026** (rip). No more security patches, bug fixes, or provider package updates. Your DAGs don't suddenly stop running, but the risk compounds quietly: dependencies drift, provider packages start requiring Airflow 3, and you end up maintaining a frozen environment with no upstream help. It wasn't the primary reason we migrated, but "unpatched CVEs on a payment platform" is not a conversation you want to have with your security team. We were already planning the migration for architectural reasons but the EOL date just added urgency.
+Open-source Apache Airflow 2.x officially reached **end of life** on **April 22, 2026** (rip). No more security patches, bug fixes, or provider package updates. Your DAGs don't suddenly stop running, but the risk compounds quietly: dependencies drift, provider packages start requiring Airflow 3, and you end up maintaining a frozen environment with no upstream help. "Unpatched CVEs on a data platform storing millions of transaction data" is not a conversation you want to have with your security team, so that added urgency to a migration we were already planning.
 
 ![](/images/posts/airflow-v3/airflow-version-lifecycle.png)
 *Apache Airflow version lifecycle — [github.com/apache/airflow](https://github.com/apache/airflow#version-life-cycle)*
 
 ### Airflow 2.x: everything talks to the database directly
 
-In Airflow 2, every component (the scheduler, the webserver, the workers) communicated directly with the metadata database (typically PostgreSQL - RDS Aurora on EKS). When a worker executed a task, it opened its own database connection, read state from it, wrote XCom values to it, and could in principle reach into any table in the metadata DB it fancied. Task code ran in the same process as the worker, with no separation whatsoever between your code and Airflow's internals.
+In Airflow 2, every component (the scheduler, the webserver, the workers) talked directly to the metadata database. Task code ran in the same process as the worker, with unrestricted access to the DB. No boundaries, no separation.
 
 ![](/images/posts/airflow-v3/airflow2-arch.png)
 *Airflow 2.x: every component connects directly to the metadata database — [Upgrading to Airflow 3](https://airflow.apache.org/docs/apache-airflow/stable/installation/upgrading_to_airflow3.html)*
 
 ### Airflow 3.x: a proper client-server model
 
-Airflow 3 introduces the Task Execution Interface — the most significant architectural shift in Airflow's history. The core idea is simple but the implications are wide: **tasks no longer talk to the database directly.** An API Server becomes the single gatekeeper to the metadata database. Workers talk to the API Server. Your task code talks to the Task SDK. Nothing gets direct DB access anymore.
+Airflow 3 introduces the **Task Execution Interface** which is talked to be the most significant architectural shift in Airflow's history. The core idea is simple but the implications are wide: **tasks no longer talk to the database directly.** An API Server becomes the single gatekeeper to the metadata database. Workers talk to the API Server. Your task code talks to the Task SDK. Nothing gets direct DB access anymore.
 
 ![](/images/posts/airflow-v3/airflow3-arch.png)
 *Airflow 3.x: the API Server is the sole gatekeeper — [Upgrading to Airflow 3](https://airflow.apache.org/docs/apache-airflow/stable/installation/upgrading_to_airflow3.html)*
@@ -78,7 +78,7 @@ The practical consequences, which I discovered the hard way:
 
 **Task isolation.** Task code can no longer import and use Airflow's internal ORM or database sessions. If your DAG or any shared library tries to open a database session at runtime, you will immediately hit `RuntimeError: Direct database access via the ORM is not allowed in Airflow 3.0`. There is no graceful degradation. It just explodes with a RuntimeError and you spend the next hour figuring out which library buried deep in your shared code is trying to touch the database.
 
-For `KubernetesExecutor` specifically, the change meant worker pods no longer run persistent worker processes. In Airflow 2, a worker pod would stay alive and handle multiple tasks. In Airflow 3, the `KubernetesExecutor` injects task execution commands into ephemeral pods that run one task and terminate. **The old `airflow worker` command from Airflow 2 is completely removed.**
+For `KubernetesExecutor` specifically, the change meant worker pods no longer run persistent worker processes. In Airflow 2, a worker pod would stay alive and handle multiple tasks. In Airflow 3, the `KubernetesExecutor` injects task execution commands into ephemeral pods that run one task and terminate. 
 
 ### Other things that actually improved
 
@@ -140,7 +140,7 @@ Other deprecations that may or may not bite you:
 
 One question that comes up immediately when you plan a migration like this: how do you run the old pipelines and the new ones at the same time without breaking each other? The answer is not "carefully" but the answer is **isolation and running in parallel.**
 
-![](/images/posts/airflow-v3/airflow-parallel-run.svg)
+![](/images/posts/airflow-v3/airflow-parallel-run.png)
 *Rough sketch on how Airflow 2 and 3 ran in parallel*
 
 We ran **two entirely separate Airflow deployments** for Airflow 2 and 3. Separate S3 DAG buckets, and separate shared libraries for V2 and V3. The two sets of pipelines had zero shared state. Airflow 2 DAGs kept running against the old 3-layer architecture while Airflow 3 DAGs were built, tested, and promoted product by product using the new 2-layer architecture. If V3 go kaboom and kablow, V2 was completely unaffected.
@@ -157,7 +157,7 @@ This is the section I wish had existed before I started. Real errors, real dates
 
 > **Note:** A note on versions: we ran initial discovery on Airflow **3.0.6**, moved active testing to **3.1.5,** and are currently (i think) on **3.1.8** in production.
 
-### Why do I need to deal with the `executor_config` ??
+### Why do I need to deal with the `executor_config`??
 
 On my early discoveries with Airflow 3.x, I hit this on the very first real DAG test in our dev environment which I only found in the scheduler logs:
 
@@ -210,9 +210,9 @@ No partial success, no graceful fallback. The task just dies. This is exactly th
 
 ### Scheduling is different now (but why)
 
-This one does not throw an error. Your DAG runs, it succeeds, and you only find out something is wrong when you look at the data. *Wait, why tf is this table empty?*
+This one does not throw an error. Your DAG runs, it succeeds, and you only find out something is wrong when you look at the data. *Wait, why is this table empty?*
 
-I ran a refactored DAG in dev. Completed successfully. Went to check the output Iceberg table. Empty. ??
+I ran a refactored DAG in dev. Completed successfully. Went to check the output Iceberg table. Empty.
 
 Checked the SQL, lgtm. Ran it manually in Athena, got data. Checked the DAG logs, no errors. Checked the Iceberg table. Definitely empty.
 
@@ -271,9 +271,7 @@ Or set `AIRFLOW__SCHEDULER__CREATE_CRON_DATA_INTERVALS=True` in your Airflow env
 
 ## 6. Our shared libraries were f****d too
 
-When I was 'in the zone' of doing discovery for Airflow 3, I soon realized that I had to refactor and rebuild the **ENTIRE** shared library that we had for Airflow (FML). "Rebuilt from scratch" is not an exaggeration btw because there were too many breaking changes in some of the important libraries that we use. So, I took the opportunity to remove everything that wasn't being used in production (there was more of that than anyone wanted to admit), merge redundant utilities into their correct homes, and organize things so that a new engineer could read the directory tree and understand where to look.
-
-The structure ended up looking something like below, but your library will look different depending on your stack; the `processor/` layer is the meaningful new addition as it is the glue between Athena, Polars, and PyIceberg that the rest of the article describes:
+Yeah, the shared library needed to be **rebuilt from scratch** as there were too many breaking changes to patch around. I used the chaos to evict dead code that nobody admitted was dead, and reorganize things so a new engineer could actually find stuff. The `processor/` layer is the only genuinely new addition: it's the glue between Athena, Polars, and PyIceberg:
 
 ```
 shared-library-v3/
@@ -284,7 +282,6 @@ shared-library-v3/
     ├── aws.py                     # AWS service clients (S3, DynamoDB, Secrets Manager)
     ├── ssh_helper.py              # SSH/SFTP file transfer
     ├── alert.py                   # Alerting callbacks (on_failure_callback)
-    ├── logging_helper.py          # Structured JSON logging
     ├── dt_helper/                 # Date/time utilities
     ├── sql_helper/                # Athena query helpers (IRSA-based)
     └── processor/                 # Core ETL processors
@@ -294,13 +291,11 @@ shared-library-v3/
         └── transformer.py        # Data transformation utilities
 ```
 
-The migration made all the accumulated debt visible all at once. I cleaned it up while I had the chance and the motivation (and sanity). Future engineers navigating this codebase will hopefully never know what it used to look like. Engineers are expected to extend it as they migrate their own pipelines, iterating in the process.
+The migration surfaced all the accumulated debt in one go. I cleaned it up while I still had the motivation (and sanity). Future engineers will hopefully never know what it looked like before.
 
 ### The new ETL stack: Polars, PyArrow, and PyIceberg
 
-With Spark and EMR gone from the critical path, we needed a new way to load data into Iceberg tables. The answer was a **pure Python pipeline**: Polars for reading and light transformation, PyArrow for schema casting, and PyIceberg for writing to Glue Iceberg tables directly.
-
-The high-level flow for every ETL DAG:
+With Spark off the critical path, we needed a replacement that didn't involve spinning up an EMR cluster to join two tables. The answer: a **pure Python pipeline**. The flow for every ETL DAG:
 
 ```
 pre-ETL setup
@@ -311,31 +306,7 @@ pre-ETL setup
     → end
 ```
 
-The UNLOAD step queries the ingestion layer and writes Parquet to a temp S3 path. The `.sql` file contains only the `SELECT` and the `UNLOAD` wrapper is built in the DAG so queries stay reusable outside of Airflow context.
-
-Each product/table defines its table schema in a `data_contract.py` file which is **the** single source of truth for schema and partitioning, replacing a messier pattern where schema lived in two places and could silently drift out of sync:
-
-```python
-from pyiceberg.schema import Schema
-from pyiceberg.types import NestedField, StringType, LongType, TimestampType
-from pyiceberg.partitioning import PartitionSpec, PartitionField
-from pyiceberg.transforms import IdentityTransform
-
-tbl_xx_schema = {
-    'schema': Schema(
-        NestedField(1, 'trxn_id', StringType(), required=True),
-        NestedField(2, 'amount', LongType(), required=False),
-        NestedField(3, 'trxn_date', TimestampType(), required=False),
-        NestedField(4, 'year_month', StringType(), required=False),
-        NestedField(5, 'etl_timestamp', TimestampType(), required=False)
-    ),
-    'partition_spec': PartitionSpec(
-        PartitionField(source_id=4, field_id=1000,
-                       transform=IdentityTransform(), name='year_month')
-    ),
-    'properties': {'write.parquet.compression-codec': 'snappy'}
-}
-```
+It's not fancy but it's fast, it works and simple in practice.
 
 ---
 
@@ -359,7 +330,7 @@ Originally, I just made internal notes/docs to stop myself from forgetting what 
 
 None of this came from one person having brilliant ideas in a room. My leaders **challenged assumptions and pushed back on early design decisions** in ways that made things genuinely better. They created space for me to iterate without pressure to lock things in early. Other DEs migrating their own pipelines **found edge cases I'd completely missed** and contributed fixes back to the shared library and overall architecture. That back-and-forth is what turned a rough POC into something that **actually holds up in production** and I'm super grateful for every one of them.
 
-Was it worth it tho? **~50 DAGs to ~20** (mostly due to the 2-layer architecture). **No EMR in the critical path.** SLAs that are actually achievable. Transactional data available the moment ingestion finishes. All in all, sounds good to me. Pioneering an architecture design that _hopefully_ makes all the other DEs happier is always a plus as well (unless they refactor everything again but hey that's for another story to tell...).
+Was it worth it? **~50 DAGs to ~20** (mostly due to the 2-layer architecture). **No EMR in the critical path.** SLAs that are actually achievable. Transactional data available the moment ingestion finishes. All in all, sounds good to me. Pioneering an architecture design that _hopefully_ makes all the other DEs happier is always a plus as well (unless they refactor everything again but hey that's for another story to tell...).
 
 ![](/images/posts/airflow-v3/airflow-outro-meme.png)
 *Meme creds to this author — [Apache Airflow : 10 Rules to Make It Work ( scale )](https://medium.com/data-science/apache-airflow-in-2022-10-rules-to-make-it-work-b5ed130a51ad)*

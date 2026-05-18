@@ -286,7 +286,7 @@ function buildMobileToc(headings) {
   const links = headings.map(h => `
     <a href="#${h.id}" @click="open = false"
        class="block text-sm leading-snug py-0.5 text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100 transition-colors ${h.level === 3 ? 'pl-3' : ''}"
-    >${escapeHtml(h.text)}</a>`).join('');
+    >${h.text}</a>`).join('');
 
   return `
     <div class="xl:hidden mb-8 border border-gray-200 dark:border-gray-700 rounded-lg px-4 py-3"
@@ -311,7 +311,7 @@ function buildToc(headings) {
     <a href="#${h.id}"
        :class="active === '${h.id}' ? 'text-gray-900 dark:text-gray-100 font-medium' : 'text-gray-400 dark:text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'"
        class="block text-sm transition-colors leading-snug py-0.5 ${h.level === 3 ? 'pl-3' : ''}"
-    >${escapeHtml(h.text)}</a>`).join('');
+    >${h.text}</a>`).join('');
 
   return `
     <div x-data='{active: null, items: ${items}}'
